@@ -104,3 +104,4 @@ dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close()});
 document.querySelector("#profileButton").addEventListener("click",()=>showToast("Welcome! This demo does not require an account."));
 document.querySelector("#year").textContent=new Date().getFullYear();
 render();
+loadTrending();
