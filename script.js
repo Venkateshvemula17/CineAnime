@@ -21,6 +21,7 @@ const dialogContent = document.querySelector("#dialogContent");
 let activeFilter = "All";
 let searchTerm = "";
 let remoteTitles = null;
+let trendingTitles = null;
 let searchRequestId = 0;
 let toastTimer;
 const saved = new Set(readSaved());
@@ -40,7 +41,7 @@ function createCard(item){
   const open=()=>showDetails(item);art.addEventListener("click",open);art.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}});
   return card;
 }
-function renderTitles(){grid.replaceChildren();const source=remoteTitles===null?titles:remoteTitles;const filtered=source.filter(matches);filtered.forEach(item=>grid.append(createCard(item)));emptyState.hidden=filtered.length>0}
+function renderTitles(){grid.replaceChildren();const source=searchTerm?(remoteTitles===null?titles:remoteTitles):(trendingTitles===null?titles:trendingTitles);const filtered=source.filter(matches);filtered.forEach(item=>grid.append(createCard(item)));emptyState.hidden=filtered.length>0}
 function renderWatchlist(){watchlistGrid.replaceChildren();const items=titles.filter(item=>saved.has(item.id));items.forEach(item=>watchlistGrid.append(createCard(item)));emptyList.hidden=items.length>0}
 function render(){renderTitles();renderWatchlist()}
 function toggleSaved(id){if(saved.has(id)){saved.delete(id);showToast("Removed from My List")}else{saved.add(id);showToast("Saved to My List ♡")}persistSaved();render()}
@@ -77,13 +78,28 @@ async function searchTmdb(){
     showToast("TMDB unavailable; showing demo titles.");
   }
 }
+async function loadTrending(){
+  try{
+    const response=await fetch("/api/trending?type=all");
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Could not load trending titles");
+    trendingTitles=Array.isArray(data.results)?data.results:null;
+    renderTitles();
+    if(trendingTitles)showToast("Trending titles updated from TMDB");
+  }catch{
+    trendingTitles=null;
+    renderTitles();
+    showToast("Showing demo titles; trending data is unavailable.");
+  }
+}
 searchInput.addEventListener("input",()=>{searchTerm=searchInput.value.trim();if(!searchTerm){remoteTitles=null;renderTitles();return}searchTmdb();});
 document.querySelectorAll("[data-filter]").forEach(button=>button.addEventListener("click",()=>{activeFilter=button.dataset.filter;document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b===button));if(searchTerm)searchTmdb();else{remoteTitles=null;renderTitles()}}));
 document.querySelector("#scrollLeft").addEventListener("click",()=>grid.scrollBy({left:-300,behavior:"smooth"}));
 document.querySelector("#scrollRight").addEventListener("click",()=>grid.scrollBy({left:300,behavior:"smooth"}));
 document.querySelector("#animeExplore").addEventListener("click",()=>{activeFilter="Anime";document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter==="Anime"));renderTitles();document.querySelector("#trending").scrollIntoView({behavior:"smooth"})});
 document.querySelector("[data-anime-link]").addEventListener("click",()=>{activeFilter="Anime";document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter==="Anime"));renderTitles()});
-document.querySelector("#clearList").addEventListener("click",()=>{if(!saved.size){showToast("Your list is already empty.");return}saved.clear();persistSaved();render();showToast("My List cleared")});
+document.querySelector("#clearList").addEventListener("click",()=>{if(!saved.size){showToast("Your list is already empty.");return}saved.clear();persistSaved();render();
+loadTrending();showToast("My List cleared")});
 document.querySelector("#dialogClose").addEventListener("click",()=>dialog.close());
 dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close()});
 document.querySelector("#profileButton").addEventListener("click",()=>showToast("Welcome! This demo does not require an account."));
