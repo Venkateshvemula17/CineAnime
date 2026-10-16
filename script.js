@@ -55,7 +55,27 @@ function showDetails(item){
   const note=document.createElement("p");note.textContent=String(item.id).startsWith("tmdb-")?"Metadata provided by TMDB. CineAnime does not host this title; use licensed services to watch it.":"This is a demo catalogue entry. The sample player below uses a public CC0 video clip, not this title.";
   const actions=document.createElement("div");actions.className="dialog-actions";
   const save=document.createElement("button");save.className="btn btn-primary";save.textContent=saved.has(item.id)?"♥ Saved to My List":"♡ Add to My List";save.addEventListener("click",()=>{toggleSaved(item.id);save.textContent=saved.has(item.id)?"♥ Saved to My List":"♡ Add to My List"});
-  const play=document.createElement("button");play.className="btn btn-glass";play.textContent="▶ Try sample player";play.addEventListener("click",()=>{dialog.close();document.querySelector("#player").scrollIntoView({behavior:"smooth"});showToast("Playing a legal sample clip below.")});
+  const play=document.createElement("button");play.className="btn btn-glass";play.textContent="▶ Watch official trailer";play.addEventListener("click",async()=>{ 
+    play.disabled=true;play.textContent="Finding trailer…";
+    try{
+      let trailerUrl="";
+      if(String(item.id).startsWith("tmdb-")&&item.tmdbId&&["movie","tv"].includes(item.mediaType)){
+        const response=await fetch("/api/trailer?id="+encodeURIComponent(item.tmdbId)+"&type="+encodeURIComponent(item.mediaType));
+        const data=await response.json();
+        if(response.ok&&data.url)trailerUrl=data.url;
+      }
+      if(!trailerUrl){
+        const query=encodeURIComponent(item.title+" "+(item.year||"")+" official trailer");
+        trailerUrl="https://www.youtube.com/results?search_query="+query;
+      }
+      window.open(trailerUrl,"_blank","noopener,noreferrer");
+      showToast(trailerUrl.includes("youtube.com/results")?"Searching YouTube for this title's official trailer.":"Opening this title's trailer.");
+    }catch{
+      const query=encodeURIComponent(item.title+" "+(item.year||"")+" official trailer");
+      window.open("https://www.youtube.com/results?search_query="+query,"_blank","noopener,noreferrer");
+      showToast("Searching YouTube for this title's official trailer.");
+    }finally{play.disabled=false;play.textContent="▶ Watch official trailer"}
+  });
   actions.append(save,play);body.append(meta,h,p,note,actions);dialogContent.append(art,body);if(typeof dialog.showModal==="function")dialog.showModal();else showToast(item.title+" — "+item.description);
 }
 async function searchTmdb(){
