@@ -20,6 +20,8 @@ const dialog = document.querySelector("#detailDialog");
 const dialogContent = document.querySelector("#dialogContent");
 let activeFilter = "All";
 let searchTerm = "";
+let remoteTitles = null;
+let searchRequestId = 0;
 let toastTimer;
 const saved = new Set(readSaved());
 
@@ -30,7 +32,7 @@ function matches(item){const kindMatch=activeFilter==="All"||item.kind===activeF
 function createCard(item){
   const card=document.createElement("article");card.className="poster-card";
   const art=document.createElement("div");art.className="poster-art";art.tabIndex=0;art.setAttribute("role","button");art.setAttribute("aria-label","View details for "+item.title);
-  const img=document.createElement("img");img.src=item.image;img.alt=item.title+" illustrative artwork";img.loading="lazy";img.onerror=()=>{img.style.display="none";art.style.background="linear-gradient(145deg,#51406d,#171b2c)"};
+  const img=document.createElement("img");if(item.image)img.src=item.image;else img.style.display="none";img.alt=item.title+" poster";img.loading="lazy";img.onerror=()=>{img.style.display="none";art.style.background="linear-gradient(145deg,#51406d,#171b2c)"};
   const badge=document.createElement("span");badge.className="poster-badge";badge.textContent=item.kind.toUpperCase();
   const save=document.createElement("button");save.className="save-button"+(saved.has(item.id)?" saved":"");save.textContent=saved.has(item.id)?"♥":"♡";save.setAttribute("aria-label",(saved.has(item.id)?"Remove ":"Save ")+item.title);save.addEventListener("click",e=>{e.stopPropagation();toggleSaved(item.id)});
   const bottom=document.createElement("div");bottom.className="poster-bottom";const title=document.createElement("h3");title.textContent=item.title;const sub=document.createElement("p");sub.textContent=item.year+" · ★ "+item.rating;bottom.append(title,sub);art.append(img,badge,save,bottom);
@@ -38,7 +40,7 @@ function createCard(item){
   const open=()=>showDetails(item);art.addEventListener("click",open);art.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}});
   return card;
 }
-function renderTitles(){grid.replaceChildren();const filtered=titles.filter(matches);filtered.forEach(item=>grid.append(createCard(item)));emptyState.hidden=filtered.length>0}
+function renderTitles(){grid.replaceChildren();const source=remoteTitles===null?titles:remoteTitles;const filtered=source.filter(matches);filtered.forEach(item=>grid.append(createCard(item)));emptyState.hidden=filtered.length>0}
 function renderWatchlist(){watchlistGrid.replaceChildren();const items=titles.filter(item=>saved.has(item.id));items.forEach(item=>watchlistGrid.append(createCard(item)));emptyList.hidden=items.length>0}
 function render(){renderTitles();renderWatchlist()}
 function toggleSaved(id){if(saved.has(id)){saved.delete(id);showToast("Removed from My List")}else{saved.add(id);showToast("Saved to My List ♡")}persistSaved();render()}
@@ -49,14 +51,34 @@ function showDetails(item){
   const meta=document.createElement("div");meta.className="dialog-meta";meta.textContent=item.kind+"  ·  "+item.year+"  ·  ★ "+item.rating+"  ·  "+item.genre;
   const h=document.createElement("h2");h.textContent=item.title;
   const p=document.createElement("p");p.textContent=item.description;
-  const note=document.createElement("p");note.textContent="This is a fictional catalogue entry. The sample player below uses a public CC0 video clip, not this title.";
+  const note=document.createElement("p");note.textContent=String(item.id).startsWith("tmdb-")?"Metadata provided by TMDB. CineAnime does not host this title; use licensed services to watch it.":"This is a demo catalogue entry. The sample player below uses a public CC0 video clip, not this title.";
   const actions=document.createElement("div");actions.className="dialog-actions";
   const save=document.createElement("button");save.className="btn btn-primary";save.textContent=saved.has(item.id)?"♥ Saved to My List":"♡ Add to My List";save.addEventListener("click",()=>{toggleSaved(item.id);save.textContent=saved.has(item.id)?"♥ Saved to My List":"♡ Add to My List"});
   const play=document.createElement("button");play.className="btn btn-glass";play.textContent="▶ Try sample player";play.addEventListener("click",()=>{dialog.close();document.querySelector("#player").scrollIntoView({behavior:"smooth"});showToast("Playing a legal sample clip below.")});
   actions.append(save,play);body.append(meta,h,p,note,actions);dialogContent.append(art,body);if(typeof dialog.showModal==="function")dialog.showModal();else showToast(item.title+" — "+item.description);
 }
-searchInput.addEventListener("input",()=>{searchTerm=searchInput.value.trim();renderTitles();document.querySelector("#trending").scrollIntoView({behavior:"smooth",block:"start"})});
-document.querySelectorAll("[data-filter]").forEach(button=>button.addEventListener("click",()=>{activeFilter=button.dataset.filter;document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b===button));renderTitles()}));
+async function searchTmdb(){
+  const requestId=++searchRequestId;
+  const query=searchTerm.trim();
+  if(query.length<2||activeFilter==="Animation"){remoteTitles=null;renderTitles();return}
+  try{
+    const category=activeFilter==="Anime"?"anime":activeFilter==="Movie"?"movie":"multi";
+    const response=await fetch("/api/search?q="+encodeURIComponent(query)+"&category="+category);
+    const data=await response.json();
+    if(requestId!==searchRequestId)return;
+    if(!response.ok)throw new Error(data.error||"TMDB search failed");
+    remoteTitles=Array.isArray(data.results)?data.results:[];
+    renderTitles();
+    showToast("TMDB results loaded");
+  }catch(error){
+    if(requestId!==searchRequestId)return;
+    remoteTitles=null;
+    renderTitles();
+    showToast("TMDB unavailable; showing demo titles.");
+  }
+}
+searchInput.addEventListener("input",()=>{searchTerm=searchInput.value.trim();if(!searchTerm){remoteTitles=null;renderTitles();return}searchTmdb();});
+document.querySelectorAll("[data-filter]").forEach(button=>button.addEventListener("click",()=>{activeFilter=button.dataset.filter;document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b===button));if(searchTerm)searchTmdb();else{remoteTitles=null;renderTitles()}}));
 document.querySelector("#scrollLeft").addEventListener("click",()=>grid.scrollBy({left:-300,behavior:"smooth"}));
 document.querySelector("#scrollRight").addEventListener("click",()=>grid.scrollBy({left:300,behavior:"smooth"}));
 document.querySelector("#animeExplore").addEventListener("click",()=>{activeFilter="Anime";document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter==="Anime"));renderTitles();document.querySelector("#trending").scrollIntoView({behavior:"smooth"})});
