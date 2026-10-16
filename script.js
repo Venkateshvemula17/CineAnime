@@ -98,8 +98,7 @@ document.querySelector("#scrollLeft").addEventListener("click",()=>grid.scrollBy
 document.querySelector("#scrollRight").addEventListener("click",()=>grid.scrollBy({left:300,behavior:"smooth"}));
 document.querySelector("#animeExplore").addEventListener("click",()=>{activeFilter="Anime";document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter==="Anime"));renderTitles();document.querySelector("#trending").scrollIntoView({behavior:"smooth"})});
 document.querySelector("[data-anime-link]").addEventListener("click",()=>{activeFilter="Anime";document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter==="Anime"));renderTitles()});
-document.querySelector("#clearList").addEventListener("click",()=>{if(!saved.size){showToast("Your list is already empty.");return}saved.clear();persistSaved();render();
-loadTrending();showToast("My List cleared")});
+document.querySelector("#clearList").addEventListener("click",()=>{if(!saved.size){showToast("Your list is already empty.");return}saved.clear();persistSaved();render();showToast("My List cleared")});
 document.querySelector("#dialogClose").addEventListener("click",()=>dialog.close());
 dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close()});
 document.querySelector("#profileButton").addEventListener("click",()=>showToast("Welcome! This demo does not require an account."));
